@@ -144,10 +144,12 @@
 		if (!claim.error && claim.value_type === "stream") {
 		  claim_ids.push(claim.claim_id);
 		} else {
-		  unresolved_urls.push(lbry_url);
+		  let error_reason = claim.error ? claim.error.text : "Not a stream claim";
+		  unresolved_urls.push(`${lbry_url} - ${error_reason}`);
 		}
 	      } catch {
-		unresolved_urls.push(lbry_url);
+		let error_reason = "Not found from response dict";
+		unresolved_urls.push(`${lbry_url} - ${error_reason}`);
 	      }
 	    }
 	    
