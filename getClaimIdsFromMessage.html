@@ -134,16 +134,20 @@
 
 	  // Resolve all found urls, and get claim_ids
 	  let claim_ids = [];
-	  let unresolve_urls = [];
+	  let unresolved_urls = [];
 	  doACall(lbrynet_url, "resolve", {urls: lbry_urls}, (response) => {
 	    let claims = response["result"];
 	    for (let i = 0; i < lbry_urls.length; i++) {
 	      let lbry_url = lbry_urls[i];
 	      let claim = claims[lbry_url];
-	      if (!claim.error && claim.value_type === "stream") {
-		claim_ids.push(claim.claim_id);
-	      } else {
-		unresolve_urls.push(lbry_url);
+	      try {
+		if (!claim.error && claim.value_type === "stream") {
+		  claim_ids.push(claim.claim_id);
+		} else {
+		  unresolved_urls.push(lbry_url);
+		}
+	      } catch {
+		unresolved_urls.push(lbry_url);
 	      }
 	    }
 	    
@@ -157,7 +161,7 @@
 	    result_text_area.value = claim_ids.join('\n').slice(0, -1); //Slice removes the last ','
 
 	    let failed_text_area = document.querySelector("#failed_text_area");
-	    failed_text_area.value = unresolve_urls.join('\n');
+	    failed_text_area.value = unresolved_urls.join('\n');
 	  });
 	}
       }
