@@ -1,0 +1,189 @@
+<html>
+  <head>
+    <style>
+      body {
+	text-align: center;
+      }
+      div {
+	margin: 10px 0px;
+      }
+      textarea {
+	width: 1000px;
+	height: 400px;
+      }
+    </style>
+    <script>
+      let default_lbrynet_url = "http://172.105.86.236:5279";
+      let check_urls = [
+	"lbry://",
+	"odysee.com/",
+	"lbry.tv/",
+      ];
+
+      function doACall(url, method, params, callback) {
+	let xhr = new XMLHttpRequest();
+	url = `${url}?m=${method}`;
+	xhr.open("POST", url, true);
+	xhr.onreadystatechange = () => {
+	  if (xhr.readyState === 4 && xhr.status === 200) {
+	    try {
+	      let response = JSON.parse(xhr.response);
+	      if (!response.error) {
+		callback(response);
+	      } else {
+		alert(response.error);
+	      }
+	    }
+	    catch {
+	      alert("Call to lbrynet failed. Response not JSON");
+	      return;
+	    }
+	  } else if (xhr.readyState === 4) {
+	    alert("Call to lbrynet failed. Status not 200");
+	  }
+	};
+	xhr.send(JSON.stringify({
+	  method: method,
+	  params: params
+	}));
+      }
+
+      function clear_result_text_areas() {
+	let failed_text_area = document.querySelector("#failed_text_area");
+	failed_text_area.value = "";
+	let result_text_area = document.querySelector("#result_text_area");
+	result_text_area.value = "";
+      }
+
+      function get_message_text_area() {
+	let message_text_area = document.querySelector("#message_text_area");
+	return message_text_area;
+      }
+
+      function get_message() {
+	let message_text_area = get_message_text_area();
+	return message_text_area.value;
+      }
+      function set_message(message) {
+	let message_text_area = get_message_text_area();
+	message_text_area.value = message;
+      }
+
+      function get_lbrynet_server_url() {
+	let lbrynet_url_input = document.querySelector("#lbrynet_url_input");
+	return lbrynet_url_input.value ? lbrynet_url_input.value : default_lbrynet_url;
+      }
+
+      function remove_url_from_message(url) {
+	let message = get_message();
+	message = message.replace(url, "DETECTED");
+	set_message(message);
+      }
+
+      function convert_url_to_LBRY_url(url) {
+	for (let i = 0; i < check_urls.length; i++) {
+	  let check_url = check_urls[i];
+	  let url_rx = new RegExp(`${check_url}.+`);
+	  let matched = url.match(url_rx);
+	  if (matched) {
+	    let lbry_url = matched[0].replace(check_url, "lbry://");
+	    return lbry_url;
+	  }
+	}
+
+      }
+
+      function try_to_get_url_from_line(line, check_urls) {
+	for (let i = 0; i < check_urls.length; i++) {
+	  let check_url = check_urls[i];
+	  let url_rx = new RegExp(`${check_url}[^\\s\\n\?]+`);
+	  let matched = line.match(url_rx);
+	  if (matched) {
+	    let matched_url = matched[0];
+	    return matched_url;
+	  }
+	}
+	return null;
+      }
+
+      function main() {
+	let lbrynet_url = get_lbrynet_server_url();
+	let lbrynet_url_btn = document.querySelector("#lbrynet_url_btn");
+	lbrynet_url_btn.onclick = () => lbrynet_url = get_lbrynet_server_url();
+	console.log(lbrynet_url);
+
+
+	let btn = document.querySelector("#get_claim_ids_btn");
+	btn.onclick = () => {
+	  clear_result_text_areas();
+	  // Get message and break it to lines
+	  let message = get_message(); 
+	  let message_lines = message.split('\n');
+
+	  // Check if any line matches to possible lbry/odysee url, and store in lbry:// format
+	  let lbry_urls = [];
+	  message_lines.forEach((line) => {
+	    let url = try_to_get_url_from_line(line, check_urls);
+	    if (url) {
+	      remove_url_from_message(url);
+	      let lbry_url = convert_url_to_LBRY_url(url);
+	      lbry_url = decodeURIComponent(lbry_url);
+	      lbry_urls.push(lbry_url);
+	    }
+	  });
+
+	  // Resolve all found urls, and get claim_ids
+	  let claim_ids = [];
+	  let unresolve_urls = [];
+	  doACall(lbrynet_url, "resolve", {urls: lbry_urls}, (response) => {
+	    let claims = response["result"];
+	    for (let i = 0; i < lbry_urls.length; i++) {
+	      let lbry_url = lbry_urls[i];
+	      let claim = claims[lbry_url];
+	      if (!claim.error && claim.value_type === "stream") {
+		claim_ids.push(claim.claim_id);
+	      } else {
+		unresolve_urls.push(lbry_url);
+	      }
+	    }
+	    
+	    // Parse claim_ids to sql query format
+	    for (let i = 0; i < claim_ids.length; i++) {
+	      claim_ids[i] = `'${claim_ids[i]}',`;
+	    }
+
+	    // Show results
+	    let result_text_area = document.querySelector("#result_text_area");
+	    result_text_area.value = claim_ids.join('\n').slice(0, -1); //Slice removes the last ','
+
+	    let failed_text_area = document.querySelector("#failed_text_area");
+	    failed_text_area.value = unresolve_urls.join('\n');
+	  });
+	}
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {main();});
+
+    </script>
+  </head>
+  <body>
+    <div>
+      <label>Lbrynet url:</label>
+      <input id="lbrynet_url_input" placeHolder="http://172.105.86.236:5279">
+      <button id="lbrynet_url_btn">Set</button>
+    </div>
+    <div class="textarea_div">
+      <p>Paste the message here ( Found urls will be replaced with word: 'DETECTED' )</p>
+      <textarea id="message_text_area"></textarea>
+    </div>
+    <button id="get_claim_ids_btn">Get claim ids</button>
+    <div class="textarea_div">
+      <p>Claim_ids</p>
+      <textarea id="result_text_area"></textarea>
+    </div>
+    <div class="textarea_div">
+      <p>Failed to resolve or not stream url</p>
+      <textarea id="failed_text_area"></textarea>
+    </div>
+  </body>
+</html>
