@@ -93,17 +93,17 @@
 
       }
 
-      function try_to_get_url_from_line(line, check_urls) {
+      function try_to_get_urls_from_line(line, check_urls) {
+	let urls = [];
 	for (let i = 0; i < check_urls.length; i++) {
 	  let check_url = check_urls[i];
-	  let url_rx = new RegExp(`${check_url}[^\\s\\n\?]+`);
-	  let matched = line.match(url_rx);
-	  if (matched) {
-	    let matched_url = matched[0];
-	    return matched_url;
+	  let url_rx = new RegExp(`${check_url}[^\\s\\n\?]+`, "g");
+	  let matched_urls = line.match(url_rx);
+	  if (matched_urls) {
+	    urls = urls.concat(matched_urls);
 	  }
 	}
-	return null;
+	return urls;
       }
 
       function main() {
@@ -123,12 +123,14 @@
 	  // Check if any line matches to possible lbry/odysee url, and store in lbry:// format
 	  let lbry_urls = [];
 	  message_lines.forEach((line) => {
-	    let url = try_to_get_url_from_line(line, check_urls);
-	    if (url) {
-	      remove_url_from_message(url);
-	      let lbry_url = convert_url_to_LBRY_url(url);
-	      lbry_url = decodeURIComponent(lbry_url);
-	      lbry_urls.push(lbry_url);
+	    let urls = try_to_get_urls_from_line(line, check_urls);
+	    if (urls) {
+	      urls.forEach((url) => {
+		remove_url_from_message(url);
+		let lbry_url = convert_url_to_LBRY_url(url);
+		lbry_url = decodeURIComponent(lbry_url);
+		lbry_urls.push(lbry_url);
+	      });
 	    }
 	  });
 
@@ -144,7 +146,10 @@
 		if (!claim.error && claim.value_type === "stream") {
 		  claim_ids.push(claim.claim_id);
 		} else {
-		  let error_reason = claim.error ? claim.error.text : "Not a stream claim";
+		  let error_reason = claim.error ? claim.error.text
+		    ? claim.error.text
+		    : claim.error
+		    : "Not a stream claim";
 		  unresolved_urls.push(`${lbry_url} - ${error_reason}`);
 		}
 	      } catch {
