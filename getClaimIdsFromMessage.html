@@ -115,10 +115,10 @@
 	let btn = document.querySelector("#get_claim_ids_btn");
 	btn.onclick = () => {
 	  clear_result_text_areas();
-	  // Get message and break it to lines
+	  // Get message
 	  let message = get_message(); 
 
-	  // Check if any line matches to possible lbry/odysee url, and store in lbry:// format
+	  // Try to get all Odysee/LBRY urls from message, and store in lbry:// format
 	  let lbry_urls = [];
 	  let urls = try_to_get_urls_from_text(message, check_urls);
 	  urls.forEach((url) => {
